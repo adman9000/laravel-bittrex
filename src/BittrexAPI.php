@@ -1,356 +1,325 @@
-<?php
+<?php 
+namespace adman9000\bittrex;
 
-/** Binance repo
- * Uses the Binance API, standardises data & function calls
-**/
+class BittrexAPI
+{
+    protected $key;     // API key
+    protected $secret;  // API secret
+    protected $url;     // API base URL
+    protected $version; // API version
+    protected $curl;    // curl handle
 
+    protected $market_url;
+    protected $public_url;
+    protected $public_url_v2;
+    protected $account_url;
 
-namespace App\Repositories;
+    /**
+     * Client constructor.
+     *
+     * @param array $auth
+     * @param array $urls
+     */
+    public function __construct(array $auth, array $urls) {
+	
+        $this->key    = array_get($auth, 'key');
+        $this->secret = array_get($auth, 'secret');
+		
+        $this->market_url  = array_get($urls, 'market');
+        $this->public_url  = array_get($urls, 'public');
+        $this->public_url_v2  = array_get($urls, 'publicv2');
+        $this->account_url = array_get($urls, 'account');
 
-use adman9000\bittrex\BittrexAPI;
+    }
 
-class BittrexExchange {
-
-
-    function __construct($key=false, $secret=false) {
-
-        $this->api_key = $key;
-        $this->api_secret = $secret;
-
+    /**
+     * Destructor function
+     **/
+    function __destruct()
+    {
     }
     
+    
+    /**
+     * setAPI()
+     * @param $key - API key
+     * @param $secret - API secret
+     * We can change the API key to access different accounts
+     **/
     function setAPI($key, $secret) {
 
-         $this->api_key = $key;
-        $this->api_secret = $secret;
+       $this->key = $key;
+       $this->secret = $secret;
     }
 
 
-	/** getAccountStats()
-	 * Returns an array of account stats for Binance
-	 * btc balance, alts btc value, btc to usd exchange rate, array of altcoins held
+    /**
+     ---------- PUBLIC FUNCTIONS ----------
+    * getTicker
+	* getTickers
+    * getCurrencies
+    * getAssetPairs (for backwards compatibility)
+    * getMarkets (calls getAssetPairs)
+    *
+    *
+    *
+    * 
+     **/
+
+	/**
+     * Used to get the current tick values for a market.
+     *
+     * @param string $market a string literal for the market (ex: BTC-LTC)
+     * @return array
+     */
+    public function getTicker($market) {
+        return $this->publicRequest('getticker', [
+            'market' => $market
+        ]);
+    }
+	
+	/**
+	* Use market summaries to get a ticker for all markets
 	**/
-	function getAccountStats() {
+	 public function getTickers() {
+        return $this->publicRequest('getmarketsummaries');
+    }
+	
 
-		$stats = array();
-
-		//Actual amount of BTC held at this exchange
-		$btc_balance = 0;
-
-		//Adding up the BTC value of altcoins
-		$alts_btc_value = 0;
-
-
-        //Get what we need from the API
-        $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $bapi->setAPI($this->api_key, $this->api_secret);
-
-		 //Get balances of my coins
-        $balances = $bapi->getBalances();
-
-        //Get the BTC-USD rate
-        $btc_market = $bapi->getTicker("USDT-BTC");
-        $btc_usd = $btc_market['result'][0]['Last'];
-
-        //Get latest markets for everythign on bittrex
-        $markets = $bapi->getTickers();
-
-
-        foreach($balances['result'] as $balance) {
-
-            //include BTC
-            if($balance['Currency'] == "BTC") {
-
-                $btc_balance = $balance['Balance'];
-
-            }
-            else {
-
-
-                foreach($markets['result'] as $market) {
-
-                    if($market['MarketName'] == 'BTC-'.$balance['Currency']) {
-
-
-                        $value = $balance['Balance'] * $market['Last'];
-
-                        $alts_btc_value += $value;
-
-                          //Set the amount of this altcoin held, plus its BTC value if amount is >0
-                        if($balance['Balance'] > 0) {
-	                        $data[$balance['Currency']]['btc_value']['balance'] = $balance['Balance'] ;
-	                        $data[$balance['Currency']]['btc_value'] = $value;
-	                        $data[$balance['Currency']]['usd_value'] = $value * $btc_usd;
-	                    }
-
-                        break;
-
-                    }
-                }
-            }
-        }
-
-        $stats['btc_balance'] = $btc_balance;
-        $stats['alts_btc_value'] = $alts_btc_value;
-        $stats['altcoins'] = $data;
-        $stats['btc_usd_rate'] = $btc_usd;
-
-        $stats['total_btc_value'] = $stats['btc_balance'] + $stats['alts_btc_value'] ;
-
-        //Get values of everything in USD
-        $stats['btc_usd_value'] = $stats['btc_balance'] * $stats['btc_usd_rate'];
-        $stats['alts_usd_value'] = $stats['alts_btc_value'] * $stats['btc_usd_rate'];
-        $stats['total_usd_value'] = $stats['total_btc_value'] * $stats['btc_usd_rate'];
-
-        return $stats;
-
-	}
-
-
-	/** getBalances()
-	 * @param $inc_zero - include zero balances
-	 * @return standardised array of balances
-	 **/
-	function getBalances($inc_zero=true) {
-
-		//Actual amount of BTC held at this exchange
-        $btc_balance = 0;
-
-        //Adding up the BTC value of altcoins
-        $alts_btc_value = 0;
-
-
-        //Get what we need from the API
-        $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $bapi->setAPI($this->api_key, $this->api_secret);
-
-         //Get balances of my coins
-        $balances = $bapi->getBalances();
-
-        //Get the BTC-USD rate
-        $btc_market = $bapi->getTicker("USDT-BTC");
-        $btc_usd = $btc_market['result'][0]['Last'];
-
-        //Get latest markets for everythign on bittrex
-        $ticker = $bapi->getTickers();
-
-        //The standardised array I'm going to return
-        $return = array();
-
-        if(!$balances['result']) return false;
-        else {
-
-            foreach($balances['result'] as $wallet) {
-
-                 //include BTC
-                if($wallet['Currency'] == "BTC") {
-
-                    $btc_balance +=  $wallet['Balance'];
-                    $return['btc']['balance'] = $wallet['Balance'];
-                    $return['btc']['available'] = $wallet['Available'];
-                    $return['btc']['locked'] = $wallet['Pending'];
-                    $return['btc']['usd_value'] = $return['btc']['balance'] * $btc_usd;
-                    $return['btc']['gbp_value'] = number_format($return['btc']['usd_value'] / env("USD_GBP_RATE"), 2);
-
-                }
-                else {
-
-
-                    foreach($ticker['result'] as $market) {
-
-                        if($market['MarketName'] == "BTC-".$wallet['Currency']) {
-
-                            $total = $wallet['Balance'];
-
-                            //Calculate the BTC value of this coin and add it to the balance
-                            $value = $total * $market['Last'];
-
-                            $alts_btc_value += $value;
-
-                            //Set the amount of this altcoin held, plus its BTC value if amount is >0
-                            if($inc_zero || $value > 0.0001) {
-
-                                $asset = array();
-                                $asset['code'] = $wallet['Currency'];
-                                $asset['balance'] = $total;
-                                $asset['available'] = $wallet['Available'];
-                                $asset['locked'] = $wallet['Pending'];
-                                $asset['btc_value'] = round($value, 8);
-                                $asset['usd_value'] = $value * $btc_usd;
-                                $asset['gbp_value'] = number_format($asset['usd_value'] / env("USD_GBP_RATE"), 2);
-                                $return['assets'][] = $asset;
-
-                            }
-
-                            break;
-
-                        }
-                    }
-                }
-                
-            }
-
-        	
-        }
-
-        return $return;
-	}
-
-
-
-    //Return an array of all tradeable assets on the exchange
-    function getAssets() {
-
-         $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-         $assets = $bapi->getCurrencies();
-         
-        $return =array();
-      
-        foreach($assets['result'] as $result) {
-            $row = array();
-            $row['code'] = $result['Currency'];
-            $row['name'] = $result['CurrencyLong'];
-            $return[] = $row;
-        }
-
-        return $return;
+    /**
+     * Used to get all supported currencies at Bittrex along with other meta data.
+     *
+     * @return array
+     */
+    public function getCurrencies() {
+        return $this->publicRequest('getcurrencies');
     }
 
-      //Return an array of all tradeable pairs on the exchange
-    function getMarkets() {
+     /**
+     * Used to get the open and available trading markets at Bittrex along with other meta data.
+     *
+     * @return array
+     */
+    public function getMarkets() {
+        return $this->publicRequest('getmarkets');
+    }
+    
 
-        $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $bapi->setAPI($this->api_key, $this->api_secret);
-        $markets = $bapi->getTickers();
-        $return =array();
 
-        foreach($markets['result'] as $market) {
-            $arr = explode("-", $market['MarketName']);
-            $trade = $arr[0];
-            if($trade == "BTC") {
-                $row = array();
-                $row['market_code'] = $market['MarketName'];
-                $row['base_code'] = $arr[1];
-                $row['trade_code'] = $arr[0];
-                $return[] = $row;
-            }
-        }
 
-        return $return;
+    /**
+     ---------- PRIVATE ACCOUNT FUNCTIONS ----------
+    * getBalances
+    * getRecentTrades
+    * getOpenOrders
+    * getAllOrders (false)
+    * trade (false)
+    * marketSell (false)
+    * marketBuy (false)
+    * limitSell
+    * limitBuy
+     **/
 
+     /**
+     * getBalances()
+     * @return array of currency balances for this account
+     **/
+     public function getBalances() {
+        return $this->accountRequest('getbalances');
+    }
+	
+	/**
+	 * Get recent trades
+	 * Not available with this API
+	**/
+	public function getRecentTrades() {
+		return false;
+	}
+
+     /**
+     * Get all orders that you currently have opened. A specific market can be requested
+     *
+     * @param string|null $market a string literal for the market (ie. BTC-LTC)
+     * @return array
+     */
+    public function getOpenOrders($market=null) {
+        return $this->marketRequest('getopenorders', [
+            'market' => $market,
+        ]);
     }
 
-    /** getTicker()
-    Get all the BTC markets available on this exchange with prices
+    /**
+     * getAllOrders()
+     * Not available in API
+     *
+     * @param string $market Currency pair
+     * @param int $limit     Limit of orders. Default. 100
+     * @return false
+     **/
+    public function getAllOrders($market = false, $limit = false) {
+         return $this->accountRequest('getorderhistory', [
+            'market' => $market,
+        ]);
+    }
+
+
+    /** trade()
+     * Not used by this API
     **/
+    public function trade($market, $amount, $type, $rate=false) {
 
-    function getTicker() {
+		return false;
+		
+    }
 
-        //The ticker info to return
-        $ticker = array();
+    /** marketSell()
+     * @param $symbol - asset pair to trade
+     * @param $amount - amount of trade asset
+    */
+    public function marketSell($symbol, $amount) {
+
+        return false;
+
+    }
+    /** marketBuy()
+     * @param $symbol - asset pair to trade
+     * @param $amount - amount of trade asset
+    */
+    public function marketBuy($symbol, $amount) {
+
+        return false;
+        
+    }
+    /**
+     *
+     * @param string $market a string literal for the market (ex: BTC-LTC)
+     * @param string|float $quantity the amount to purchase
+     * @param string|float rate the rate at which to place the order.
+     *
+     * @return array Returns you the order uuid
+     */
+    public function limitBuy($market, $quantity, $rate) {
+        return $this->marketRequest('buylimit', [
+            'market' => $market,
+            'quantity' => $quantity,
+            'rate' => $rate,
+        ]);
+    }
+
+    /**
+     *
+     * @param string $market a string literal for the market (ex: BTC-LTC)
+     * @param string|float $quantity the amount to sell
+     * @param string|float rate the rate at which to place the order.
+     *
+     * @return array Returns you the order uuid
+     *
+     */
+    public function limitSell($market, $quantity, $rate) {
+        return $this->marketRequest('selllimit', [
+            'market' => $market,
+            'quantity' => $quantity,
+            'rate' => $rate,
+        ]);
+    }
 
 
-         //Get what we need from the API
-        $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $bapi->setAPI($this->api_key, $this->api_secret);
+
+      /**
+     ---------- REQUESTS ----------
+     **/
 
 
-        //Get the BTC-USD rate
-        $btc_market = $this->getBTCMarket();
-        $btc_usd = $btc_market['usd_price'];
+    /**
+     * Execute a public API request
+     *
+     * @param $segment
+     * @param array $parameters
+     * @return array
+     */
+    function publicRequest ($segment, array $parameters=[], $version='v1.1') {
+        $options = [
+            'http' => [
+                'method'  => 'GET',
+                'timeout' => 10,
+            ],
+        ];
 
-        $markets =  $bapi->getTickers();
+        $publicUrl = $this->getPublicUrl($version);
+        $url = $publicUrl . $segment . '?' . http_build_query(array_filter($parameters));
+        $feed = file_get_contents($url, false, stream_context_create($options));
+        return json_decode($feed, true);
+    }
 
-        //Loop through markets, find any of my coins and save the latest price to DB
-        foreach($markets['result'] as $market) {
-            $arr = explode("-", $market['MarketName']);
-            $base = $arr[0];
-            if($base == "BTC") {
-                
-                $price_info = array("code" => $arr[1], "btc_price"=>$market['Last'], "usd_price" => $market['Last'] * $btc_usd, "gbp_price" => $market['Last'] * $btc_usd / env("USD_GBP_RATE"));
-                  
-                $ticker[] = $price_info;
-   
-            }
+
+         /**
+     * Executes a private API request (market|account),
+     * using nonce, key & secret
+     *
+     * @param $baseUrl
+     * @param $segment
+     * @param array $parameters
+     * @return array
+     */
+    protected function privateRequest($baseUrl, $segment, $parameters=[]) {
+        $parameters = array_merge(array_filter($parameters), [
+            'apiKey' => $this->key,
+            'nonce' => time()
+        ]);
+
+        $uri = $baseUrl . $segment . '?' . http_build_query($parameters);
+        $sign = hash_hmac('sha512', $uri, $this->secret);
+        $ch = curl_init($uri);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "apisign:$sign",
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_USERAGENT,
+            'Mozilla/4.0 (compatible; Bittrex PHP-Laravel Client; ' . php_uname('a') . '; PHP/' . phpversion() . ')'
+        );
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT,  20);
+        curl_setopt($ch,  CURLOPT_TIMEOUT, 300);
+
+        $execResult = curl_exec($ch);
+        $res = json_decode($execResult, true);
+        return $res;
+    }
+	
+	    /**
+     * Execute a market API request
+     *
+     * @param $segment
+     * @param array $parameters
+     * @return array
+     */
+    public function marketRequest($segment, array $parameters=[]) {
+        $baseUrl = $this->market_url;
+        return $this->privateRequest($baseUrl, $segment, $parameters);
+    }
+
+    /**
+     * Execute an account API request
+     *
+     * @param $segment
+     * @param array $parameters
+     * @return array
+     */
+    public function accountRequest($segment, array $parameters=[]) {
+        $baseUrl = $this->account_url;
+        return $this->privateRequest($baseUrl, $segment, $parameters);
+    }
+
+    private function getPublicUrl($version)
+    {
+        switch($version) {
+            case 'v1.1':
+                return $this->public_url;
+            case 'v2.0':
+                return $this->public_url_v2;
+            default:
+                throw new \Exception("Invalid Bittrex API version: $version");
         }
-
-        return $ticker;
     }
 
-
-        //get the btc usd market & gbp price as well
-    function getBTCMarket() {
-
-        $bapi = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $bapi->setAPI($this->api_key, $this->api_secret);
-
-        $market = $bapi->getTicker("USDT-BTC");
-        $market = $market['result'];
-        $price_info = array("code" => "BTC",  "usd_price" => $market['Last'] , "gbp_price" => $market['Last'] / env("USD_GBP_RATE"));
-                return $price_info;
-
-    }
-
-
-        /** Bittrex API doesn't allow market buy & sell so use limits & pass market price in **/
-
-    function marketSell($symbol, $quantity, $rate) {
-
-        $api = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $api->setAPI($this->api_key, $this->api_secret);
-
-        return $api->sellLimit($symbol, $quantity, $rate);
-
-    }
-
-    function marketBuy($symbol, $quantity, $rate) {
-
-        $api = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $api->setAPI($this->api_key, $this->api_secret);
-
-        return $api->buyLimit($symbol, $quantity, $rate);
-
-    }
-
-
-    function getOrders() {
-
-        $api = new BittrexAPI(config("bittrex.auth"), config("bittrex.urls"));
-        $api->setAPI($this->api_key, $this->api_secret);
-
-        $orders = $api->getOrderHistory();
-
-         $return = array();
-
-        foreach($orders['result'] as $order) {
-            $r = array();
-
-            $coins = explode("-", $order['Exchange']);
-            $type = explode("_", $order['OrderType']);
-
-            if($type[sizeof($type)-1] == "BUY") {
-                $r['coin_bought'] = $coins[0];
-                $r['coin_sold'] = $coins[1];
-                $r['amount_bought'] = $order['Quantity'];
-                $r['amount_sold'] = $order['Price'];
-            }
-            else {
-                $r['coin_bought'] = $coins[1];
-                $r['coin_sold'] = $coins[0];
-                $r['amount_bought'] = $order['Price'];
-                $r['amount_sold'] = $order['Quantity'];
-            }
-
-            $r['exchange_rate'] = $order['PricePerUnit'];
-            $r['fees'] = $order['Commission'];
-            if($order['Closed']) $r['status'] = "complete"; 
-            else $r['status'] = "incomplete";
-
-            $return[] = $r;
-
-        }
-
-       return $return;
-
-    }
 }
