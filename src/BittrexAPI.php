@@ -21,10 +21,10 @@ class BittrexAPI
      * @param array $urls
      */
     public function __construct(array $auth, array $urls) {
-	
+    
         $this->key    = array_get($auth, 'key');
         $this->secret = array_get($auth, 'secret');
-		
+        
         $this->market_url  = array_get($urls, 'market');
         $this->public_url  = array_get($urls, 'public');
         $this->public_url_v2  = array_get($urls, 'publicv2');
@@ -56,7 +56,7 @@ class BittrexAPI
     /**
      ---------- PUBLIC FUNCTIONS ----------
     * getTicker
-	* getTickers
+    * getTickers
     * getCurrencies
     * getAssetPairs (for backwards compatibility)
     * getMarkets (calls getAssetPairs)
@@ -66,7 +66,7 @@ class BittrexAPI
     * 
      **/
 
-	/**
+    /**
      * Used to get the current tick values for a market.
      *
      * @param string $market a string literal for the market (ex: BTC-LTC)
@@ -77,14 +77,14 @@ class BittrexAPI
             'market' => $market
         ]);
     }
-	
-	/**
-	* Use market summaries to get a ticker for all markets
-	**/
-	 public function getTickers() {
+    
+    /**
+    * Use market summaries to get a ticker for all markets
+    **/
+     public function getTickers() {
         return $this->publicRequest('getmarketsummaries');
     }
-	
+    
 
     /**
      * Used to get all supported currencies at Bittrex along with other meta data.
@@ -118,6 +118,7 @@ class BittrexAPI
     * marketBuy (false)
     * limitSell
     * limitBuy
+    * depositAddress
      **/
 
      /**
@@ -127,14 +128,14 @@ class BittrexAPI
      public function getBalances() {
         return $this->accountRequest('getbalances');
     }
-	
-	/**
-	 * Get recent trades
-	 * Not available with this API
-	**/
-	public function getRecentTrades() {
-		return false;
-	}
+    
+    /**
+     * Get recent trades
+     * Not available with this API
+    **/
+    public function getRecentTrades() {
+        return false;
+    }
 
      /**
      * Get all orders that you currently have opened. A specific market can be requested
@@ -168,8 +169,8 @@ class BittrexAPI
     **/
     public function trade($market, $amount, $type, $rate=false) {
 
-		return false;
-		
+        return false;
+        
     }
 
     /** marketSell()
@@ -223,6 +224,17 @@ class BittrexAPI
         ]);
     }
 
+
+    /**
+     * Deposit Address
+     * @param string $symbol   Asset symbol
+     * @return mixed
+     **/
+    public function depositAddress($symbol) {
+
+        return $this->accountRequest("getdepositaddress", ['currency' => $symbol]);
+        
+    }
 
 
       /**
@@ -282,11 +294,12 @@ class BittrexAPI
         curl_setopt($ch,  CURLOPT_TIMEOUT, 300);
 
         $execResult = curl_exec($ch);
+   
         $res = json_decode($execResult, true);
         return $res;
     }
-	
-	    /**
+    
+        /**
      * Execute a market API request
      *
      * @param $segment
