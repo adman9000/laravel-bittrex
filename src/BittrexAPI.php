@@ -20,8 +20,11 @@ class BittrexAPI
      * @param array $auth
      * @param array $urls
      */
-    public function __construct(array $auth, array $urls) {
+    public function __construct(array $auth=null, array $urls=null) {
     
+        if(!$auth) $auth = config("bittrex.auth");
+        if(!$urls) $urls = config("bittrex.urls");
+
         $this->key    = array_get($auth, 'key');
         $this->secret = array_get($auth, 'secret');
         
