@@ -239,6 +239,36 @@ class BittrexAPI
         
     }
 
+    /**
+    * Deposit History
+    * @param string $symbol   Asset symbol
+    * @return mixed
+    **/
+    public function depositHistory($symbol) {
+        return $this->accountRequest("getdeposithistory", ['currency' => $symbol]);
+    }
+
+    /**
+    * Withdrawal History
+    * @param string $symbol   Asset symbol
+    * @return mixed
+    **/
+    public function withdrawalHistory($symbol) {
+        return $this->accountRequest("getwithdrawalhistory", ['currency' => $symbol]);
+    }
+
+    /**
+    * Withdraw Funds
+    * @param string $symbol   Asset symbol
+    * @param string $address
+    * @param string $amount
+    * @param string $paymentid optional
+    * @return mixed
+    **/
+    public function withdrawFunds($symbol, $address, $amount, $paymentid=false) {
+        return $this->accountRequest("withdraw", ['currency' => $symbol, 'quantity' => $amount, 'address' => $address, 'paymentid' => $paymentid]);
+    }
+
 
       /**
      ---------- REQUESTS ----------
