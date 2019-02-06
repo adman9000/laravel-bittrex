@@ -106,6 +106,18 @@ class BittrexAPI
     public function getMarkets() {
         return $this->publicRequest('getmarkets');
     }
+
+
+    /**
+     * Used to retrieve the latest trades that have occurred for a specific market.
+     *
+     * @return array
+     */
+    public function getMarketHistory($market) {
+        return $this->publicRequest('getmarkethistory', [
+            'market' => $market
+        ]);
+    }
     
 
 
